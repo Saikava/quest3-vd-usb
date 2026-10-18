@@ -1,0 +1,26 @@
+buffers { size_kb: 262144 fill_policy: RING_BUFFER }
+buffers { size_kb: 16384 fill_policy: RING_BUFFER }
+data_sources { config { name: "linux.ftrace" target_buffer: 0 ftrace_config {
+  ftrace_events: "sched/sched_switch"
+  ftrace_events: "sched/sched_waking"
+  ftrace_events: "power/cpu_frequency"
+  ftrace_events: "power/gpu_frequency"
+  ftrace_events: "task/task_newtask"
+  ftrace_events: "task/task_rename"
+  atrace_categories: "gfx"
+  atrace_categories: "video"
+  atrace_apps: "*"
+  buffer_size_kb: 16384
+  drain_period_ms: 250
+  compact_sched { enabled: true }
+} } }
+data_sources { config { name: "track_event" target_buffer: 0 track_event_config { enabled_categories: "*" } } }
+data_sources { config { name: "android.log" target_buffer: 1 android_log_config { log_ids: LID_DEFAULT log_ids: LID_SYSTEM log_ids: LID_EVENTS log_ids: LID_KERNEL } } }
+data_sources { config { name: "linux.process_stats" target_buffer: 1 process_stats_config { scan_all_processes_on_start: true } } }
+write_into_file: true
+file_write_period_ms: 1000
+flush_period_ms: 5000
+duration_ms: DURATION
+# producers clear their interned strings every second: else one lost packet (the compositor's writer once lost 27 when its
+# shared memory was full) makes the trace processor skip all its later events (packet_skipped_seq_needs_incremental_state_invalid)
+incremental_state_config { clear_period_ms: 1000 }

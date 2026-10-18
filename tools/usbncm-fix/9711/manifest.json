@@ -1,0 +1,34 @@
+{
+  "source": "C:\\Windows\\System32\\DriverStore\\FileRepository\\usbncm.inf_amd64_70d658347632acad\\UsbNcm.sys",
+  "version_from_device": "10.0.26100.9711",
+  "source_sha256": "f34630163c88948e6fb272bd60f84d588ec2907cf228faa52ff698f3df0f0b79",
+  "pdb_id": "EBC3AC7CFC0377E1EFED4DD78D50716D1",
+  "patches": [
+    {
+      "format": "NTB16",
+      "instruction_file_offset_and_rva": "0xa23e",
+      "changed_byte_file_offset": "0xa241",
+      "before": "41 8d 43 01",
+      "after": "41 8d 43 02",
+      "meaning": "lea eax, [r11 + 1] -> lea eax, [r11 + 2]"
+    },
+    {
+      "format": "NTB32",
+      "instruction_file_offset_and_rva": "0xa38a",
+      "changed_byte_file_offset": "0xa38d",
+      "before": "41 8d 43 01",
+      "after": "41 8d 43 02",
+      "meaning": "lea eax, [r11 + 1] -> lea eax, [r11 + 2]"
+    }
+  ],
+  "state": "Offline copy only; not test-signed and not installed",
+  "patched_sha256": "64cb3c60974e702865ebf1cb662ff67fe682056587cf4c2ae0352068652bab54",
+  "pe_checksum_file_offset": "0x140",
+  "original_pe_checksum": "0x375d1",
+  "patched_pe_checksum": "0x377d1",
+  "all_changed_file_offsets": [
+    "0x141",
+    "0xa241",
+    "0xa38d"
+  ]
+}
