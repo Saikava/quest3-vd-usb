@@ -1,11 +1,11 @@
-# Virtual Desktop over a USB cable on Quest 3 (Windows 11): fixing the freezes and the micro-stutters
+# Virtual Desktop over a USB cable on Quest 3 (Windows 11): the freezes are a Windows driver bug
 
 Notes from two days of measuring one setup: Quest 3, Virtual Desktop 1.34.24 (beta, wired USB mode), Windows 11 (build 26200), RTX 5070 Ti, a 32-bit OpenXR game (FlatOut 2 with a VR mod) through VDXR. Every number below was measured on this setup, mostly in 3–5-minute races. Your mileage may vary; the causes should not.
 
 ## TL;DR
 
 1. **Short full freezes (~¼ second every 10–60 s) over USB, but not over Wi-Fi**: a bug in Windows' own USB network driver (`UsbNcm.sys`). Partial workaround: `netsh int tcp set global timestamps=disabled` (admin), then restart VD on the headset. Real fix: Microsoft's (reported, see below), or a patched driver if you are comfortable with Windows test-signing mode.
-2. **The remaining micro-stutters** (single repeated frames, a few per minute) come from the Quest 3's hardware video decoder taking too long now and then. Most of the slow decodes happen while the headset calibrates its colour cameras or runs background work. **Turning on Travel Mode, turning off Wi-Fi and hand/body tracking** cut decodes slower than 16 ms from 5.6 to 0 per minute and repeated frames from 3.8 to 1.1 per minute.
+2. **The remaining micro-stutters** (about one single repeated frame per minute) are video frames the Quest 3's hardware decoder finished a few milliseconds late. No VD setting removes them.
 3. **At Godlike quality use 120 Hz, not 144 Hz.** At 144 Hz the decoder can't keep up (both eyes take ~7.2 ms against a 6.9 ms frame): 5× more repeated frames.
 4. **Codec:** H.264+ at 500 Mbit/s looked best at speed to me; AV1 10-bit decodes more evenly. HEVC and HEVC 10-bit had by far the worst decode spikes on Quest 3.
 
@@ -67,18 +67,11 @@ What it showed:
 | HEVC 10-bit | 5.3 / 18 | 7.2 / 22 |
 | H.264 | 4.4 / 8.7 | 4.1 / 8.3 |
 
-### Where the slow decodes come from, and the fix
+### Where the slow decodes come from
 
 The slow decodes come in bursts. In one race (H.264+ 500 Mbit/s, 120 Hz, 69 decodes over 13 ms):
 - **a third** fell in the 1.4 seconds every 21.4 s when the tracking service switches on the **colour cameras for calibration** (`iot:ocal` in logcat): 6.5% of the time, 5× more slow decodes than chance;
-- most of the rest came with bursts of background work: Meta's telemetry, the kernel reclaiming and compacting memory, the Wi-Fi telemetry service starting (Wi-Fi was on although VD ran over USB).
-
-Then, on the headset: **Travel Mode on, Wi-Fi off, hand and body tracking off** (plus a longer sleep timeout). In Travel Mode the colour-camera calibration didn't run once, telemetry logged far less, and head tracking stayed full 6DoF (logcat: `Mode=TravelModeDescriptorVega,6DoF`). I changed these together, so I can't say which one matters most.
-
-| H.264+ 500 Mbit/s, Godlike, 120 Hz | Repeated frames / min | Decodes > 12 ms / min | > 16 ms / min | One eye, 99.9th pct |
-|---|---|---|---|---|
-| default headset settings | 3.8 | 24 | 5.6 | 14 ms |
-| Travel Mode, Wi-Fi off, hand/body tracking off | **1.1** | **0.4** | **0** | **9.5 ms** |
+- most of the rest came with bursts of background work: Meta's telemetry, the kernel reclaiming and compacting memory, the Wi-Fi telemetry service starting.
 
 The ~1 single repeated frame per minute that's left is a frame decoded 2–5 ms later than usual, with no big stall behind it. VD's window for a frame is only a few milliseconds, and VD has no setting for it.
 
@@ -95,7 +88,6 @@ The ~1 single repeated frame per minute that's left is a frame decoded 2–5 ms 
 |---|---|
 | Connection | VD 1.34.24 beta, USB cable, patched `UsbNcm.sys` |
 | VD | Godlike, 120 Hz, H.264+ 500 Mbit/s, video buffering on, sharpening on |
-| Quest | Travel Mode on, Wi-Fi off, hand and body tracking off |
 | Windows | TCP timestamps at the default (`allowed`) |
 | Result | about one single repeated frame per minute, the game drops none |
 
