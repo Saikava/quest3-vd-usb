@@ -46,7 +46,7 @@ The fix in machine code is one byte in each of two places (the NTB16 and NTB32 c
 
 The procedure used here: make a patched copy of `UsbNcm.sys` from the DriverStore (never touch the original), sign it with a self-signed code-signing certificate, trust that certificate in the machine's Root and TrustedPublisher stores, copy the driver to `C:\Windows\System32\drivers\UsbNcmNtbFix.sys`, point `HKLM\SYSTEM\CurrentControlSet\Services\UsbNcm\ImagePath` at it, enable test signing, reboot, and verify the patched module is actually the one loaded. Keep a rollback script that restores the original `ImagePath` and turns test signing off. The scripts (pinned to builds .9444 and .9711 by SHA-256) are in [`tools/usbncm-fix/`](tools/usbncm-fix/); read its README first.
 
-If you'd rather wait: upvote [the issue on Microsoft's repository](https://github.com/microsoft/NCM-Driver-for-Windows/issues/27) and send the same through the Feedback Hub (Devices and Drivers).
+If you'd rather wait: upvote [the issue on Microsoft's repository](https://github.com/microsoft/NCM-Driver-for-Windows/issues/27) (the one-line fix is proposed in [a pull request](https://github.com/microsoft/NCM-Driver-for-Windows/pull/28)) and send the same through the Feedback Hub (Devices and Drivers).
 
 ## 2. The micro-stutters: the Quest 3's video decoder
 
