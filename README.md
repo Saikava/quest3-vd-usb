@@ -94,7 +94,7 @@ The ~1 single repeated frame per minute that's left is a frame decoded 2–5 ms 
 | | |
 |---|---|
 | Connection | VD 1.34.24 beta, USB cable, patched `UsbNcm.sys` |
-| VD | Godlike, 120 Hz, H.264+ 500 Mbit/s, video buffering on, sharpening off |
+| VD | Godlike, 120 Hz, H.264+ 500 Mbit/s, video buffering on, sharpening on |
 | Quest | Travel Mode on, Wi-Fi off, hand and body tracking off |
 | Windows | TCP timestamps at the default (`allowed`) |
 | Result | about one single repeated frame per minute, the game drops none |
