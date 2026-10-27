@@ -8,6 +8,7 @@ Notes from two days of measuring one setup: Quest 3, Virtual Desktop 1.34.24 (be
 2. **The remaining micro-stutters** (about one single repeated frame per minute) are video frames the Quest 3's hardware decoder finished a few milliseconds late. No VD setting removes them.
 3. **At Godlike quality use 120 Hz, not 144 Hz.** At 144 Hz the decoder can't keep up (both eyes take ~7.2 ms against a 6.9 ms frame): 5× more repeated frames.
 4. **Codec:** H.264+ at 500 Mbit/s looked best at speed to me; AV1 10-bit decodes more evenly. HEVC and HEVC 10-bit had by far the worst decode spikes on Quest 3.
+5. **Over Wi-Fi, the router's firmware matters.** A TP-Link Archer C6 v2 on stock firmware lost the headset's uplink packets, with ~50 ms stalls. The same router flashed with OpenWrt was clean and delivered 150 Mbit/s smoothly. Its CPU runs out above that. See [section 3](#3-over-wi-fi-the-access-points-firmware).
 
 ## 1. The freezes: a bug in Windows' USB NCM driver
 
@@ -82,6 +83,20 @@ The ~1 single repeated frame per minute that's left is a frame decoded 2–5 ms 
 - Lower bitrate with AV1 (decode time doesn't depend on it).
 - 144 Hz at Godlike: 8.4 repeated frames per minute against 1.5–1.7 at 120 Hz.
 
+## 3. Over Wi-Fi: the access point's firmware
+
+Same headset, same desk, PC wired to the access point, channel 36 at 80 MHz. Details, the flashing steps and the tools: [`docs/wifi.md`](docs/wifi.md).
+
+| Access point | Headset → PC probes lost | Stalls ≥ 30 ms per minute | VD-like 150 Mbit/s stream: frames > 8 ms late per minute | 300 Mbit/s |
+|---|---|---|---|---|
+| TP-Link Archer C6 v2, stock firmware 1.3.8 | 0.23–0.58% | 0–6.7 (~50 ms, sometimes 150–370 ms) | not measured | — |
+| **Same Archer, OpenWrt 25.12.6** | 0–0.001% | 0–0.4 | **1–9** | CPU saturated (one 775 MHz MIPS core) |
+| Xiaomi Mesh System AX3000 (RA82), stock 1.4.31, Wi-Fi 6 | 0% | 1.3 (up to 41 ms) | 2–36 | 10–110 late per minute, no setting fixed it; OpenWrt impossible (secure boot) |
+
+In a race, the Archer on OpenWrt with AV1 10-bit at 150 Mbit/s gave 2.1 repeated frames a minute, against 1.0–1.75 over the USB cable.
+
+**Measure with VD running on the headset.** VD takes the low-latency Wi-Fi lock. Without it the Quest 3 keeps power saving on and scans channels every few minutes, and Wi-Fi looks worse than in a game.
+
 ## My settings now
 
 | | |
@@ -105,6 +120,8 @@ Useful markers: compositor thread `OVR::TimeWarp` in `com.oculus.vrruntimeservic
 | [`tools/usbncm-fix/`](tools/usbncm-fix/) | the patch, signing, install / verify / rollback scripts for the driver (no Microsoft binaries) |
 | [`tools/perfetto/`](tools/perfetto/) | Perfetto trace configs for the Quest and the analysis scripts |
 | [`tools/capture/`](tools/capture/) | packet capture on the USB adapter (`pktmon`, run elevated) and its analysis for VD's stream |
+| [`tools/wifi/`](tools/wifi/) | Wi-Fi link tests PC → headset: a receiver for the Quest (Go, no root), an uplink/downlink packet probe, a VD-like frame stream, and a receiver for a laptop |
 | [`docs/tracing.md`](docs/tracing.md) | tracing a Quest 3 with Perfetto over adb, without root |
+| [`docs/wifi.md`](docs/wifi.md) | VD over Wi-Fi: Archer C6 v2 on stock firmware and on OpenWrt, Xiaomi RA82, how to flash and how to measure |
 
 The scripts were written during the investigation for one PC and one game; read each one's header before running it.
