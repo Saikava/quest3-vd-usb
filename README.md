@@ -8,7 +8,7 @@ Notes from two days of measuring one setup: Quest 3, Virtual Desktop 1.34.24 (be
 2. **The remaining micro-stutters** (about one single repeated frame per minute) are video frames the Quest 3's hardware decoder finished a few milliseconds late. No VD setting removes them.
 3. **At Godlike quality use 120 Hz, not 144 Hz.** At 144 Hz the decoder can't keep up (both eyes take ~7.2 ms against a 6.9 ms frame): 5× more repeated frames.
 4. **Codec:** H.264+ at 500 Mbit/s looked best at speed to me; AV1 10-bit decodes more evenly. HEVC and HEVC 10-bit had by far the worst decode spikes on Quest 3.
-5. **Over Wi-Fi, the router's firmware matters.** A TP-Link Archer C6 v2 on stock firmware lost the headset's uplink packets, with ~50 ms stalls. The same router flashed with OpenWrt was clean and delivered 150 Mbit/s smoothly. Its CPU runs out above that. See [section 3](#3-over-wi-fi-the-access-points-firmware).
+5. **Over Wi-Fi, the router's firmware matters.** A TP-Link Archer C6 v2 on stock firmware lost the headset's uplink packets, with ~50 ms stalls. The same router flashed with OpenWrt was clean and delivered 150 Mbit/s smoothly; up to 180 about as evenly, but with a rare ~0.1 s stall. Its CPU runs out at 250–300 Mbit/s. See [section 3](#3-over-wi-fi-the-access-points-firmware).
 
 ## 1. The freezes: a bug in Windows' USB NCM driver
 

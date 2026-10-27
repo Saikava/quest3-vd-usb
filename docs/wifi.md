@@ -10,11 +10,11 @@ Measured on one setup in October 2026. Quest 3 with Virtual Desktop 1.34.24, lyi
 
    **The same router flashed with OpenWrt 25.12.6**, with nothing else changed, lost 0–0.001% and stalled 0–0.4 times a minute.
 2. **On OpenWrt the Archer delivers a 150 Mbit/s VD-like stream smoothly.** It had 1–9 frames a minute more than 8 ms late. In a real race, AV1 10-bit at 150 Mbit/s gave 2.1 repeated frames a minute, against 1.0–1.75 over a USB cable.
-3. **Above ~150 Mbit/s the Archer's CPU runs out**: one MIPS core at 775 MHz, and OpenWrt bridges the traffic in software. At 200 Mbit/s 17 frames a minute were late; at 300 Mbit/s, thousands.
+3. **From 150 to 180 Mbit/s it's equally even, but above 150 rare stalls appear.** All of these bitrates had about 12 frames a minute more than 8 ms late. From 160 Mbit/s up there were occasional ~0.1 s stalls, 5 in 24 minutes, and none in 11 minutes at 150. That evidence is weak. At 190 Mbit/s it was clearly worse. The CPU runs out only at 250–300 Mbit/s: it's one MIPS core at 775 MHz, and OpenWrt bridges the traffic in software. An earlier version of this page said the CPU ran out above 150. That came from tests run without VD and was wrong.
 4. **A Wi-Fi 6 router on its stock firmware, Xiaomi Mesh System AX3000 (RA82), carries 300 Mbit/s, but not evenly**: 10–110 late frames a minute. None of its settings changed that by an order of magnitude, and 160 MHz was worse. OpenWrt can't be installed on it: secure boot is on, and U-Boot runs only Xiaomi-signed images.
 5. **Measure with VD running on the headset.** Without it, the Quest 3 keeps Wi-Fi power saving on and lets a location service scan channels. Both make Wi-Fi look worse than it is in a game (see [Measuring](#measuring)).
 
-**What I use for Wi-Fi play:** Archer C6 v2 on OpenWrt 25.12.6, VD at 150 Mbit/s, AV1 10-bit. Even 300 Mbit/s over Wi-Fi was not achieved on either access point.
+**What I use for Wi-Fi play:** Archer C6 v2 on OpenWrt 25.12.6, VD at 150 Mbit/s with AV1 10-bit. 170 is likely fine too, but with an occasional stall. Even 300 Mbit/s over Wi-Fi was not achieved on either access point.
 
 ## Archer C6 v2: stock firmware against OpenWrt
 
@@ -42,11 +42,26 @@ On the stock firmware, measurements ruled out everything other than the access p
 |---|---|---|---|---|---|
 | 150 Mbit/s, 10 min (72 000 frames, none missing) | 0.9 | 0 | 0 | 11 ms | |
 | 150 Mbit/s, VD running, 3 × 1 min | 1 / 9 / 1 | | | 8 / 21 / 8 ms | |
-| 200 Mbit/s | 17 | 6.3 | 3.0 | | 75% median, 100% peaks |
-| 250 Mbit/s | 291 | | | | 91% |
-| 300 Mbit/s | 2899 | 324 | 2.7 | | saturated |
+| 200 Mbit/s, VD not running | 17 | 6.3 | 3.0 | | 75% median, 100% peaks |
+| 250 Mbit/s, VD not running | 291 | | | | 91% |
+| 300 Mbit/s, VD not running | 2899 | 324 | 2.7 | | saturated |
 
-The 5 GHz chip runs hot: 69 °C idle, 83–101 °C at 150 Mbit/s, and 106–115 °C at 200–500 Mbit/s.
+Between 150 and 200 Mbit/s, with VD running, I did two series. The first was three interleaved rounds of 1-minute runs at 150–200, in steps of 10. The second was 5-minute runs back to back, like a game. Together:
+
+| Archer on OpenWrt, VD running | Minutes | Frames > 8 ms late per minute | Stalls (frames > 33 ms late) | AP CPU, median |
+|---|---|---|---|---|
+| 150 Mbit/s | 11 | 12.0 | 0 | 59–71% |
+| 160 Mbit/s | 8 | 12.3 | 2 (48, 125 ms) | 59–71% |
+| 170 Mbit/s | 8 | 12.1 | 2 (101, 105 ms) | 63–73% |
+| 180 Mbit/s | 8 | 12.8 | 1 (81 ms) | 72–75% |
+| 190 Mbit/s | 3 | 27.7 | 2 (38, 67 ms) | 72–77% |
+| 200 Mbit/s | 3 | 14.7 | 0 | 74–76% |
+
+- **Run-to-run spread (0–35 a minute) is larger than the difference between 150 and 180.** There's no sharp threshold in this range.
+- **Each stall is one event of about 0.1 s.** Around 30 frames in a row are late by 30–105 ms. In that second the AP's transmit rate drops, from 650–867 to 325–360 Mbit/s, and retries rise, while the signal stays the same.
+- **Stalls came mostly when the 5 GHz chip was hottest**, at 101–111 °C against 91–98 °C in the clean runs. The correlation is loose, and OpenWrt's thermal throttling (`ath10k_thermal`) never engaged. Better cooling might help, but that's untested.
+
+The 5 GHz chip runs hot: 69 °C idle, 83–105 °C at 150 Mbit/s, and up to 114 °C at 180 Mbit/s and 106–115 °C at 200–500 Mbit/s.
 
 ### In a game
 
@@ -104,8 +119,8 @@ Frame test with VD running, 1-minute runs, frames more than 8 ms late per minute
 
 | Bitrate | RA82, Wi-Fi 6 (HE80), extras off | RA82, stock "Wi-Fi 5 Compatible Mode" (VHT80) | Archer on OpenWrt |
 |---|---|---|---|
-| 150 Mbit/s | 2 – 36 (6 runs) | | 1 – 9 (3 runs) |
-| 200 Mbit/s | 27 / 43 | 22 / 30 | 17 (VD not running) |
+| 150 Mbit/s | 2 – 36 (6 runs) | | 0 – 9 (6 runs) |
+| 200 Mbit/s | 27 / 43 | 22 / 30 | 4 – 27 (3 runs) |
 | 250 Mbit/s | | 68 | 291 (VD not running) |
 | 300 Mbit/s | 10 / 28 / 110 | 44 / 48 | CPU saturated |
 | 300 Mbit/s at 160 MHz (HE160) | 846 / 145 / 33 | | |
