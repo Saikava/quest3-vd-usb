@@ -95,7 +95,7 @@ Same headset, same desk, PC wired to the access point, channel 36 at 80 MHz. Det
 
 In a race, the Archer on OpenWrt with AV1 10-bit at 150 Mbit/s gave 2.1 repeated frames a minute, against 1.0–1.75 over the USB cable.
 
-**Three settings made the difference on the Archer.** Pick a channel block nobody else uses. Turn A-MSDU off: the Quest 3 has short dips in reception, and a lost multi-packet MPDU held the stream back 10–30 ms. And don't poll the router's Wi-Fi driver while playing. With all three, 180 Mbit/s had 1.3–5 frames a minute more than 8 ms late in five runs, and none more than 16 ms late. 200 was similar in two runs. At 220–240 it ranged from 2 to 71 a minute. The 1–9 in the table was measured on channel 36, with A-MSDU on and the polling running.
+**Three settings made the difference on the Archer.** Pick a channel block nobody else uses. Turn A-MSDU off: the Quest 3 has short dips in reception, and a lost multi-packet MPDU held the stream back 10–30 ms. And don't poll the router's Wi-Fi driver while playing. With all three, 180 Mbit/s had 1.3–5 frames a minute more than 8 ms late in five runs, and none more than 16 ms late. 200 was similar in two runs. At 220–240 it ranged from 2 to 71 a minute. The 1–9 in the table was measured on channel 36, with A-MSDU on and the polling running. In a race with all three and VD at 180 Mbit/s, the headset repeated 2.1 frames a minute, all single ones, about the same as over the USB cable.
 
 **Measure with VD running on the headset.** VD takes the low-latency Wi-Fi lock. Without it the Quest 3 keeps power saving on and scans channels every few minutes, and Wi-Fi looks worse than in a game.
 

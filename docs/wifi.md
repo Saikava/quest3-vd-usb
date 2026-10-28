@@ -20,7 +20,7 @@ Measured on one setup in October 2026. Quest 3 with Virtual Desktop 1.34.24, lyi
 5. **A Wi-Fi 6 router on its stock firmware, Xiaomi Mesh System AX3000 (RA82), carries 300 Mbit/s, but not evenly**: 10–110 late frames a minute. None of its settings changed that by an order of magnitude, and 160 MHz was worse. OpenWrt can't be installed on it: secure boot is on, and U-Boot runs only Xiaomi-signed images.
 6. **Measure with VD running on the headset.** Without it, the Quest 3 keeps Wi-Fi power saving on and lets a location service scan channels. Both make Wi-Fi look worse than it is in a game (see [Measuring](#measuring)).
 
-**What I use for Wi-Fi play:** Archer C6 v2 on OpenWrt 25.12.6, channel 100, A-MSDU off. VD puts ~5% more on the air than its bitrate setting, so VD at 180 Mbit/s with AV1 10-bit matches the ~190 that tested clean, and 200 is worth a try. That isn't checked in a game yet. Even 300 Mbit/s over Wi-Fi was not achieved on either access point.
+**What I use for Wi-Fi play:** Archer C6 v2 on OpenWrt 25.12.6, channel 100, A-MSDU off, VD at 180 Mbit/s with AV1 10-bit. In a race that gave 2.1 repeated frames a minute, all single ones, about the same as over a USB cable. At 200 one network burst spoiled 10 seconds of the race. Even 300 Mbit/s over Wi-Fi was not achieved on either access point.
 
 ## Archer C6 v2: stock firmware against OpenWrt
 
@@ -141,7 +141,7 @@ With A-MSDU off:
 
 The same settings at 220 Mbit/s gave 2.0 and 24.0 a minute in two runs 20 minutes apart. To see whether the CPU limits 220–240, I read it once a second during three runs, in a way that doesn't disturb the stream, with marked probes in the separate queue again. At 240 the median was 86–87%, the maximum 92%, and no second reached 95%. The late frames didn't fall in the busier seconds. During them, the marked probes waited 8–10 ms and the stream's queue ~14 ms. So at 220–240 it's mostly the same reception dips, hit more often at higher rates, with a slightly larger share from the CPU.
 
-Why the headset's reception dips for 5–17 ms, I don't know. It isn't spatial-multiplexing power save, which the headset has disabled.
+Why the headset's reception dips for 5–17 ms, I don't know. It isn't spatial-multiplexing power save, which the headset has disabled. It isn't the USB cable either: with VD streaming the desktop over the cable, or with the Streamer stopped so that only adb used it, 180 Mbit/s over Wi-Fi came out the same (1.3–7.7 a minute either way). VD holds the low-latency lock even with no Streamer to connect to.
 
 ### In a game
 
@@ -150,7 +150,10 @@ FlatOut 2 (VR mod, VDXR), Godlike quality, 120 Hz. "Repeated frames" are the hea
 | Connection | Repeated frames per minute | What caused them |
 |---|---|---|
 | USB cable, H.264+ 500 Mbit/s (patched driver, [README](../README.md)) | 1.0–1.75 | the headset's video decoder |
-| Archer C6 v2 on OpenWrt, AV1 10-bit 150 Mbit/s (one 3.4-minute race) | 2.1 | 5 of 7 were the decoder, 2 were Wi-Fi frames 6–7 ms late. Wi-Fi also lost packets 3 times, which made video frames 17–25 ms late. The stock firmware's ~50 ms uplink stalls were gone: the longest pause in the race was 19 ms |
+| Archer C6 v2 on OpenWrt, channel 36, AV1 10-bit 150 Mbit/s (one 3.4-minute race) | 2.1 | 5 of 7 were the decoder, 2 were Wi-Fi frames 6–7 ms late. Wi-Fi also lost packets 3 times, which made video frames 17–25 ms late. The stock firmware's ~50 ms uplink stalls were gone: the longest pause in the race was 19 ms |
+| Archer on OpenWrt, channel 100, A-MSDU off, AV1 10-bit 150 Mbit/s (3.8 minutes) | 3.5 | a burst of 5 was the decoder; the rest single. Video frames more than 8 ms late from the network: 4.6 a minute |
+| Same, **180 Mbit/s** (3.3 minutes) | **2.1** | all single, mostly the decoder. Late from the network: 8.9 a minute |
+| Same, 200 Mbit/s (192 measured, 4 minutes) | 73 | one network burst: the AP dropped 67 MPDUs, TCP resent 645 KB, and seconds 14–23 stuttered. Outside it, ~1.4 a minute. Late from the network: 15.9 a minute |
 | Xiaomi RA82 stock, "Wi-Fi 5 Compatible Mode", H.264+ 300 Mbit/s | 4.1 | mostly the network: video frames 5–23 ms late, ACK pauses from the headset > 15 ms 4.7 times a minute |
 
 ## Flashing an Archer C6 v2 with OpenWrt
