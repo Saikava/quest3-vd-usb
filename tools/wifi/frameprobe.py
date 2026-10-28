@@ -26,7 +26,9 @@ host = os.environ.get('FP_HOST')  # a laptop running framesink instead of the he
 if host:
     ip, srv = host, None
 else:
-    ip = next((w.split('/')[0] for w in adb('shell', 'ip -4 addr show wlan0').stdout.split() if '/' in w and w[0].isdigit()), None)
+    # FP_IP: another address of the headset, e.g. its USB link-local 'fe80::…%<PC ifIndex>' for a run over the cable
+    ip = os.environ.get('FP_IP') or next((w.split('/')[0] for w in adb('shell', 'ip -4 addr show wlan0').stdout.split()
+                                          if '/' in w and w[0].isdigit()), None)
     if not ip:
         raise SystemExit('no wlan0 IPv4 address')
     adb('shell', 'pkill -f tsecho')
@@ -37,13 +39,35 @@ else:
 
 tcp = socket.create_connection((ip, 5563))
 tcp.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-u = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+fam, _, _, _, udst = socket.getaddrinfo(ip, 5562, type=socket.SOCK_DGRAM)[0]
+u = socket.socket(fam, socket.SOCK_DGRAM)
 u.setblocking(False)
+socks = [u]
+vport = int(os.environ.get('FP_VIPORT', 0))  # odd probes go from this source port; a QoS policy can mark it (DSCP 46)
+if vport:
+    u2 = socket.socket(fam, socket.SOCK_DGRAM)
+    u2.bind(('::' if fam == socket.AF_INET6 else '0.0.0.0', vport))
+    u2.setblocking(False)
+    socks.append(u2)
 size = int(mbps * 1e6 / 8 / hz)
 payload = bytes(size)
 period = 1 / hz
 sent, blocked = {}, {}
-psent, pgot = {}, {}
+psent, pgot, phs = {}, {}, {}
+chirps = []
+
+
+def chirp(tag):
+    """FP_CHIRP: three UDP packets of odd sizes, 20 ms apart, on a quiet link, to find this run in a sniffer capture."""
+    for n in (1111, 1222, 1333):
+        chirps.append((tag, n, time.perf_counter_ns()))
+        u.sendto(struct.pack('<Q', 1 << 62) + bytes(n - 8), udst)
+        time.sleep(0.02)
+    time.sleep(0.3)
+
+
+if os.environ.get('FP_CHIRP'):
+    chirp('start')
 t0 = time.perf_counter()
 stop = t0 + seconds
 with open(os.path.join(outdir, 't0.txt'), 'w') as f:
@@ -51,19 +75,26 @@ with open(os.path.join(outdir, 't0.txt'), 'w') as f:
 nf = t0
 npb = t0
 seq = pseq = 0
+def got(d):
+    s = struct.unpack_from('<Q', d)[0]
+    if s in psent and s not in pgot:
+        pgot[s] = time.perf_counter_ns()
+        if len(d) >= 56:
+            phs[s] = struct.unpack_from('<qqq', d, 32)  # receiver's kernel receive time (0 if none), user receive, send
+
+
 while time.perf_counter() < stop:
-    while True:
-        try:
-            d = u.recv(256)
-        except (BlockingIOError, OSError):
-            break
-        s = struct.unpack_from('<Q', d)[0]
-        if s in psent and s not in pgot:
-            pgot[s] = time.perf_counter_ns()
+    for sk in socks:
+        while True:
+            try:
+                d = sk.recv(256)
+            except (BlockingIOError, OSError):
+                break
+            got(d)
     now = time.perf_counter()
     if now >= npb:
         psent[pseq] = time.perf_counter_ns()
-        u.sendto(struct.pack('<Qq', pseq, psent[pseq]) + bytes(16), (ip, 5562))
+        socks[pseq % len(socks)].sendto(struct.pack('<Qq', pseq, psent[pseq]) + bytes(16), udst)
         pseq += 1
         npb += 0.002
     if now >= nf:
@@ -76,14 +107,23 @@ while time.perf_counter() < stop:
         nf += period
         if time.perf_counter() > nf + 0.1:
             nf = time.perf_counter()  # far behind: do not burst to catch up
+if os.environ.get('FP_CHIRP'):
+    time.sleep(0.3)
+    chirp('end')
+    with open(os.path.join(outdir, 'chirp.txt'), 'w') as f:
+        f.write('sent0 0 %d\n' % sent[0])  # PC perf_counter ns of frame 0 (t_s = 0 in frames.csv)
+        for c in chirps:
+            f.write('%s %d %d\n' % c)
 end = time.perf_counter() + 1.0
 while time.perf_counter() < end:
-    try:
-        d = u.recv(256)
-        s = struct.unpack_from('<Q', d)[0]
-        if s in psent and s not in pgot:
-            pgot[s] = time.perf_counter_ns()
-    except (BlockingIOError, OSError):
+    idle = True
+    for sk in socks:
+        try:
+            got(sk.recv(256))
+            idle = False
+        except (BlockingIOError, OSError):
+            pass
+    if idle:
         time.sleep(0.001)
 tcp.close()
 time.sleep(0.5)
@@ -128,6 +168,35 @@ line = ('%s [%.1f min steady, %.0f Mbit/s, %.0f Hz, frame %d KB]: frames %d, mis
         'sender blocked p99.9 %.1f ms max %.1f; udp probes lost (either way) %.3f%%') % (
     label, mins_measured, mbps, hz, size // 1024, len(steady), missing, p(50), p(99), p(99.9), vals[-1],
     late[4], late[8], late[16], late[33], blk[min(len(blk) - 1, int(0.999 * len(blk)))], blk[-1], 100 * pl / max(pn, 1))
+# each UDP probe one way: PC -> headset (to its kernel receive time, or user time if it has none) and headset -> PC,
+# with offset and drift removed like for the frames
+def excess(pairs):
+    mins = {}
+    for t, d in pairs:
+        w = int(t // 5)
+        if w not in mins or d < mins[w][1]:
+            mins[w] = (t, d)
+    if len(mins) < 2:
+        return {}
+    xs, ys = zip(*mins.values())
+    mx, my = sum(xs) / len(xs), sum(ys) / len(ys)
+    k = sum((x - mx) * (y - my) for x, y in zip(xs, ys)) / (sum((x - mx) ** 2 for x in xs) or 1)
+    return {t: (d - (my + k * (t - mx))) / 1e6 for t, d in pairs}
+
+
+pt = {s: (psent[s] - sent[0]) / 1e9 for s in psent}
+down = excess([(pt[s], (phs[s][0] or phs[s][1]) - psent[s]) for s in phs])
+up = excess([(pt[s], pgot[s] - phs[s][2]) for s in phs])
+with open(os.path.join(outdir, 'probes.csv'), 'w') as f:
+    f.write('seq,t_s,down_ms,up_ms,via\n')  # via 1: sent from FP_VIPORT
+    for s in sorted(psent):
+        t = pt[s]
+        f.write('%d,%.4f,%s,%s,%d\n' % (s, t, '%.3f' % down[t] if t in down else '', '%.3f' % up[t] if t in up else '',
+                                      s % len(socks)))
+dv = sorted(v for t, v in down.items() if t >= WARM) or [0]
+uv = sorted(v for t, v in up.items() if t >= WARM) or [0]
+line += '; probes one way, excess ms: down p99.9 %.1f max %.1f, up p99.9 %.1f max %.1f' % (
+    dv[min(len(dv) - 1, int(0.999 * len(dv)))], dv[-1], uv[min(len(uv) - 1, int(0.999 * len(uv)))], uv[-1])
 with open(os.path.join(outdir, 'frames.csv'), 'w') as f:
     f.write('seq,t_s,excess_ms,recv_ms,blocked_ms\n')
     for s, t, e, dur in ex:

@@ -10,8 +10,9 @@ Measured on one setup in October 2026. Quest 3 with Virtual Desktop 1.34.24, lyi
 
    **The same router flashed with OpenWrt 25.12.6**, with nothing else changed, lost 0–0.001% and stalled 0–0.4 times a minute.
 2. **On OpenWrt the Archer delivers a 150 Mbit/s VD-like stream smoothly.** It had 1–9 frames a minute more than 8 ms late. In a real race, AV1 10-bit at 150 Mbit/s gave 2.1 repeated frames a minute, against 1.0–1.75 over a USB cable.
-3. **With nothing polling it, the Archer on OpenWrt carries 180–200 Mbit/s about as evenly as 150.** 180 Mbit/s had 0.3–10 frames a minute more than 8 ms late (median ~3.7), and none more than 33 ms late in 38 minutes. 200 Mbit/s was similar. 220–240 Mbit/s got worse, and the CPU reached ~80% at 240. It's one MIPS core at 775 MHz, and OpenWrt bridges the traffic in software.
-4. **Two things made it look worse, and both are easy to avoid:**
+3. **On a free channel, with A-MSDU off and nothing polling it, the Archer on OpenWrt carries 180 Mbit/s evenly.** Five runs gave 1.3–5 frames a minute more than 8 ms late, and none more than 16 ms late. 200 Mbit/s was similar in two runs. At 220–240 Mbit/s it varied from run to run, from 2 to 71 a minute. The CPU, one MIPS core at 775 MHz, wasn't the limit there: at 240 it never reached 95% in any second. An earlier version of this page said it was.
+4. **Three things made it worse, and all three are easy to avoid:**
+   - **A-MSDU.** The Quest 3 has short dips in reception, 5–17 ms long, in which it loses about half of the MPDUs. A MacBook next to it doesn't see them. With the Archer packing up to three packets into one MPDU (A-MSDU), one lost MPDU held the stream back for 10–30 ms. With A-MSDU off, no frame was later than 16 ms. See [What caused the remaining late frames](#what-caused-the-remaining-late-frames).
    - **My own measurement.** Running `iw station dump` and `iw survey dump` on the router once a second took 180 Mbit/s from ~4 to 17–23 late frames a minute. Reading `/proc` once a second didn't. So don't query the router's Wi-Fi driver while playing. LuCI pages that list connected clients probably do the same; that's untested.
    - **A neighbour's 80 MHz network on channels 36–48.** At night, when it was busy, channel 36 had twice the late frames of channel 100 and ten times the retries. In the daytime it made no difference. Channels 100–112 had no neighbours here.
 
@@ -19,7 +20,7 @@ Measured on one setup in October 2026. Quest 3 with Virtual Desktop 1.34.24, lyi
 5. **A Wi-Fi 6 router on its stock firmware, Xiaomi Mesh System AX3000 (RA82), carries 300 Mbit/s, but not evenly**: 10–110 late frames a minute. None of its settings changed that by an order of magnitude, and 160 MHz was worse. OpenWrt can't be installed on it: secure boot is on, and U-Boot runs only Xiaomi-signed images.
 6. **Measure with VD running on the headset.** Without it, the Quest 3 keeps Wi-Fi power saving on and lets a location service scan channels. Both make Wi-Fi look worse than it is in a game (see [Measuring](#measuring)).
 
-**What I use for Wi-Fi play:** Archer C6 v2 on OpenWrt 25.12.6, channel 100, and so far VD at 150 Mbit/s with AV1 10-bit. VD puts ~5% more on the air than its bitrate setting, so VD at 170–180 Mbit/s matches the 180–190 that tested clean. That isn't checked in a game yet. Even 300 Mbit/s over Wi-Fi was not achieved on either access point.
+**What I use for Wi-Fi play:** Archer C6 v2 on OpenWrt 25.12.6, channel 100, A-MSDU off. VD puts ~5% more on the air than its bitrate setting, so VD at 180 Mbit/s with AV1 10-bit matches the ~190 that tested clean, and 200 is worth a try. That isn't checked in a game yet. Even 300 Mbit/s over Wi-Fi was not achieved on either access point.
 
 ## Archer C6 v2: stock firmware against OpenWrt
 
@@ -91,9 +92,9 @@ In the morning, without polling, I alternated 36 and 100 again. Channel 36 was n
 
 In the earlier runs, 54–70% of the late frames on channel 100 fell within 60 ms after a polling tick, against 5% by chance. Five of the eight 0.1 s stalls started at the same point of the polling cycle.
 
-**A sniffer saw nothing else wrong.** I used a MacBook in monitor mode: Wireless Diagnostics → Window → Sniffer, channel 100, 80 MHz. With VD running, the headset never entered power save and never scanned, and nothing else transmitted on channels 100–112. The AP retried 2.5% of its frames. It sent small aggregates, ~9 MPDUs of two packets each, at MCS 5–7 on two streams.
+**A first sniffer capture ruled out power save, scans and neighbours.** I used a MacBook in monitor mode: Wireless Diagnostics → Window → Sniffer, channel 100, 80 MHz. With VD running, the headset never entered power save and never scanned, and nothing else transmitted on channels 100–112. The AP retried 2.5% of its frames. It sent small aggregates, ~9 MPDUs of two packets each, at MCS 5–7 on two streams.
 
-**Bitrate on channel 100 without polling**, two interleaved rounds of 4-minute runs:
+**Bitrate on channel 100 without polling**, A-MSDU still on, two interleaved rounds of 4-minute runs:
 
 | Bitrate | Frames > 8 ms late per minute | > 33 ms | Max | AP CPU, average |
 |---|---|---|---|---|
@@ -102,7 +103,45 @@ In the earlier runs, 54–70% of the late frames on channel 100 fell within 60 m
 | 220 Mbit/s | 17.8 / 6.5 | one 0.12 s stall | 123 / 20 ms | 72 / 76% |
 | 240 Mbit/s | 13.8 / 12.3 | 0 | 21 / 16 ms | 82 / 79% |
 
-Where the last 2–10 late frames a minute (8–20 ms) on a clean channel come from, I don't know.
+That left 2–10 late frames a minute (8–20 ms) on a clean channel. I tracked them down one step at a time.
+
+**Not the PC, not TCP, not the headset's software.** I ran the same 180 Mbit/s stream over the USB cable, to the headset's USB network address, interleaved with Wi-Fi runs. VD was running in both. Over the cable, no frame was more than 4 ms late, and the maximum was 3.5 ms. Over Wi-Fi it was 1.7–5 a minute more than 8 ms late.
+
+**Downlink only.** The stream carries a UDP probe every 2 ms. The headset timestamps each probe in its kernel and echoes it, so each direction can be measured on its own. During the late frames, probes to the headset were held up 12–14 ms; normally it's 4–5 ms. Probes back to the PC were barely affected.
+
+**The stream's own Wi-Fi queue.** Half the probes were marked DSCP 46, which the AP sends in a separate queue (TID 6) with its own BlockAck session. Up to the Wi-Fi queues, marked and plain probes take the same path through the AP's CPU. During late frames, the plain probes waited 12–16 ms and the marked ones 6–8 ms; normally both wait ~4 ms. So the CPU adds a small common part, and most of the delay is in the stream's queue.
+
+**A sniffer with time marks.** The probe sends three UDP packets of odd sizes on a quiet link at the start and the end of a run. These marks line the Mac's capture up with the PC's clock to within 0.5 ms. In 260 s the headset's BlockAcks showed 21,610 "holes": MPDUs it hadn't received while later ones had arrived. It holds everything after a hole until the hole is filled. Most holes closed within ~1 ms. The long ones are the late frames:
+
+| | Late frames (20) | Normal frames (188) |
+|---|---|---|
+| Longest hole during the frame, median | 10.7 ms | 0 |
+| Frames with a hole over 5 ms | 15 | 1 |
+
+The AP retried the missing MPDU every 1–2 ms, first in the next aggregate, at MCS 4–7 on two streams. The Mac received those retries with good checksums. During the holes longer than 5 ms, the headset lost 45% of all MPDUs in the same aggregates, against 1% otherwise. So the headset has short dips in reception, and a dip that hits a large MPDU stalls the stream.
+
+**A-MSDU off** (`htt_max_amsdu_ampdu`, maximum packets per MPDU and MPDUs per aggregate), 180 Mbit/s, 3-minute runs interleaved:
+
+| A-MSDU | Frames > 8 ms late per minute | Runs with frames > 16 ms late | Max |
+|---|---|---|---|
+| up to 3 packets (default, `3 64`) | 20 / 10.7 / 11 / 0.7 / 5 | 4 of 5 | 8–27 ms |
+| up to 2 packets (`2 64`) | 7 / 5.3 / 10.7 | 2 of 3 | 15–32 ms |
+| off (`1 64`) | 3 / 5 / 4.7 / 2.3 / 1.3 | 0 of 5 | 9–13 ms |
+
+The headset accepts MPDUs of up to 3895 bytes; three packets are ~4.6 KB. But two packets fit, and that was still worse than one, so size limits are not the whole story. The AP's CPU load was the same in all three, since the Wi-Fi firmware builds the A-MSDUs.
+
+With A-MSDU off:
+
+| Bitrate | Frames > 8 ms late per minute | > 16 ms | Max | AP CPU, average |
+|---|---|---|---|---|
+| 180 Mbit/s | 1.3–5 (5 runs) | 0 | 9–13 ms | 68–72% |
+| 200 Mbit/s | 1.7 / 5.3 | 0 | 12 / 14 ms | 68 / 75% |
+| 220 Mbit/s | 2.0 / 24.0 | 0 / 0.3 | 11 / 16 ms | 81 / 77% |
+| 240 Mbit/s | 16.0 / 10.7 / 71.3 | 5.7 / 0 / 26.3 | 34 / 12 / 46 ms | 82 / 84 / 84% |
+
+The same settings at 220 Mbit/s gave 2.0 and 24.0 a minute in two runs 20 minutes apart. To see whether the CPU limits 220–240, I read it once a second during three runs, in a way that doesn't disturb the stream, with marked probes in the separate queue again. At 240 the median was 86–87%, the maximum 92%, and no second reached 95%. The late frames didn't fall in the busier seconds. During them, the marked probes waited 8–10 ms and the stream's queue ~14 ms. So at 220–240 it's mostly the same reception dips, hit more often at higher rates, with a slightly larger share from the CPU.
+
+Why the headset's reception dips for 5–17 ms, I don't know. It isn't spatial-multiplexing power save, which the headset has disabled.
 
 ### In a game
 
@@ -157,8 +196,22 @@ This is what was done here. It was done once, on one router; read the [OpenWrt d
    iw dev phy0-ap0 scan | grep -E "^BSS|freq:|signal:|SSID:|primary channel|channel width|center freq segment 1"
    ```
 
-   Afterwards the router is at the new address. Nothing else was changed. No packages were added: the image's default driver, `ath10k-ct`, was used. Transmit power was left at the default.
-6. **Going back to stock**, not tried here: TP-Link's TFTP recovery. The PC is at 192.168.0.66 and serves the stock firmware named `ArcherC6v2_tp_recovery.bin`, and you hold Reset while powering the router on. See the OpenWrt device page for the details.
+   Afterwards the router is at the new address. No packages were added: the image's default driver, `ath10k-ct`, was used. Transmit power was left at the default.
+6. **Turn A-MSDU off on the 5 GHz radio.** The firmware resets this whenever Wi-Fi restarts, so a hotplug script sets it again each time the interface appears. Check the interface name with `iw dev`.
+
+   ```sh
+   cat > /etc/hotplug.d/net/99-ath10k-no-amsdu <<'EOF'
+   # No A-MSDU on the 5 GHz radio (ath10k-ct): the Quest 3 loses large MPDUs in short reception dips
+   [ "$ACTION" = add ] && [ "$INTERFACE" = phy0-ap0 ] || exit 0
+   ( sleep 5; echo "1 64" > /sys/kernel/debug/ieee80211/phy0/ath10k/htt_max_amsdu_ampdu ) &
+   EOF
+   echo /etc/hotplug.d/net/99-ath10k-no-amsdu >> /etc/sysupgrade.conf   # keep it across firmware upgrades
+   wifi down; wifi up; sleep 10
+   cat /sys/kernel/debug/ieee80211/phy0/ath10k/htt_max_amsdu_ampdu      # should print: 1 64
+   ```
+
+   To undo it, delete the file and run `wifi down; wifi up`.
+7. **Going back to stock**, not tried here: TP-Link's TFTP recovery. The PC is at 192.168.0.66 and serves the stock firmware named `ArcherC6v2_tp_recovery.bin`, and you hold Reset while powering the router on. See the OpenWrt device page for the details.
 
 ## Xiaomi Mesh System AX3000 (RA82) on stock firmware
 
@@ -221,6 +274,7 @@ The lock drops when the headset sleeps, so start VD again before each run. Most 
 
 Other notes:
 - **Don't query the AP's Wi-Fi driver during a test.** On the Archer, `iw station dump` and `iw survey dump` once a second made 180 Mbit/s 4–7× worse. Take readings before and after the stream instead. Reading `/proc/stat` and `/sys/class/hwmon/*/temp1_input` with shell builtins (`read l < /proc/stat`) once a second was harmless. The RA82 was sampled that way, so its numbers aren't affected.
-- **To see the air itself, a Mac makes a usable sniffer:** Wireless Diagnostics → Window → Sniffer, with the channel and the width. The capture lands in `/var/tmp`. The M3 Pro's capture cut the AP's A-MSDUs at ~1.8 KB, but it caught every BlockAck from the headset.
+- **To see the air itself, a Mac makes a usable sniffer:** Wireless Diagnostics → Window → Sniffer, with the channel and the width. The capture lands in `/var/tmp`. The M3 Pro's capture cut the AP's A-MSDUs at ~1.8 KB, but it caught every BlockAck from the headset. On macOS 26, `tcpdump -I` doesn't enter monitor mode: it captures nothing, and the Mac stays connected.
+- **A Mac is no use as a test client in the headset's place.** On the same Archer at 180 Mbit/s, the MacBook had 826 late frames a minute, with ~250 ms stalls, partly from location-service scans every 5 s. With VD running, the headset had 2–5. macOS has no low-latency Wi-Fi mode.
 - **One-minute runs are enough to spot an order-of-magnitude difference.** Identical settings vary 2–3× between runs, so smaller differences need several runs.
 - **On a Mac as the second client, run `sudo ifconfig awdl0 down` during the test**, and `up` afterwards. AWDL, the radio used by AirDrop, takes the radio off the channel.

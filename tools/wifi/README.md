@@ -7,7 +7,9 @@ These are the tools behind [`docs/wifi.md`](../../docs/wifi.md). The PC is wired
 | `tsecho/` (Go) | Receiver on the headset. It has a UDP echo on 5562 that adds kernel receive, user receive and send times, and logs every probe it got, so a lost probe can be blamed on the way down or the way up. A TCP sink on 5561 takes the load stream. A frame receiver on 5563 logs when each frame's first and last byte arrived. |
 | `owprobe.py <seconds> <load_mbps> <label> <outdir>` | A TCP load at the given rate plus a 32-byte UDP probe every 2 ms. Prints loss and excess delay separately in each direction, and stalls ≥ 30 ms. |
 | `steady.py <runs dir>` | Summarises every `owprobe` run in a folder again, without the first 10 s, when TCP is still ramping up. |
-| `frameprobe.py <seconds> <mbps> <hz> <label> <outdir>` | A VD-like stream: one TCP frame of mbps/hz every 1/hz s. Prints frames more than 4 / 8 / 16 / 33 ms late per minute, with the first 10 s left out, and writes `frames.csv`. |
+| `frameprobe.py <seconds> <mbps> <hz> <label> <outdir>` | A VD-like stream: one TCP frame of mbps/hz every 1/hz s, plus a UDP probe every 2 ms. Prints frames more than 4 / 8 / 16 / 33 ms late per minute, with the first 10 s left out. Writes `frames.csv`, and `probes.csv` with each probe's delay down and up. Options are set as environment variables, see below. |
+| `sniff/sniffparse.py <capture> <out.bin>`, `sniffsum.py <out.bin>` | A radiotap capture, e.g. from macOS Wireless Diagnostics → Sniffer, to compact records: MAC time, addresses, sequence numbers, BlockAck bitmaps, MCS. Then a summary per transmitter. |
+| `sniff/sniffholes.py <out.bin> <run dir> <AP MAC> <headset MAC>` | Lines a capture up with a `frameprobe` run made with `FP_CHIRP=1`. Lists the MPDUs the headset reported missing in its BlockAcks, and the longest such hole during each late frame. |
 | `framesink/` (Go) | The same frame receiver for a laptop (macOS, Windows, Linux), used as a second Wi-Fi client in the headset's place. It returns its log over TCP 5564. |
 
 ## Build and install
@@ -39,6 +41,11 @@ A laptop as the receiver instead of the headset: run `framesink` on it, built wi
 FP_HOST=<laptop IP> python frameprobe.py 70 300 120 mac-300 runs/mac-300
 ```
 
-On a Mac, run `sudo ifconfig awdl0 down` for the duration of the test, then `sudo ifconfig awdl0 up`.
+On a Mac, run `sudo ifconfig awdl0 down` for the duration of the test, then `sudo ifconfig awdl0 up`. A Mac as the client is much noisier than the headset with VD; see `docs/wifi.md`.
+
+`frameprobe.py` options:
+- `FP_IP=<address>`: send to another address of the headset, e.g. its USB network link-local `fe80::…%<PC interface index>`, for a control run over the cable. VD brings that link up.
+- `FP_VIPORT=40000`: send every other probe from this source port. A Windows QoS policy (`New-NetQosPolicy -IPProtocolMatchCondition UDP -IPSrcPortMatchCondition 40000 -DSCPAction 46`, admin) then marks them DSCP 46, so the AP puts them in a separate Wi-Fi queue. `probes.csv` column `via` tells them apart.
+- `FP_CHIRP=1`: three UDP packets of 1111, 1222 and 1333 bytes on a quiet link at the start and the end, written to `chirp.txt`, to find the run in a sniffer capture.
 
 The scripts were written for this one investigation; read each one's header before running it.
