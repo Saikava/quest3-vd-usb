@@ -1,6 +1,6 @@
 # Virtual Desktop over Wi-Fi on Quest 3: the router's firmware matters
 
-Measured on one setup in October 2026. Quest 3 with Virtual Desktop 1.34.24, lying on a desk 1–2 m from the access point (RSSI −35…−50 dBm). The PC was wired to the access point at 1 Gbit/s. Channel 36 at 80 MHz, with one weak neighbour on 5 GHz (channel 48, −77 dBm). All numbers below are from this setup.
+Measured on one setup in October 2026. Quest 3 with Virtual Desktop 1.34.24, lying on a desk 1–2 m from the access point (RSSI −35…−50 dBm). The PC was wired to the access point at 1 Gbit/s. Channel 36 at 80 MHz, later channel 100 (see [What caused the remaining late frames](#what-caused-the-remaining-late-frames)). A scan from the Archer found two neighbours in the 36–48 block: one on 48 using the same 80 MHz block at −69 dBm, and one on 36 at 20/40 MHz, −77 dBm. All numbers below are from this setup.
 
 ## TL;DR
 
@@ -10,11 +10,16 @@ Measured on one setup in October 2026. Quest 3 with Virtual Desktop 1.34.24, lyi
 
    **The same router flashed with OpenWrt 25.12.6**, with nothing else changed, lost 0–0.001% and stalled 0–0.4 times a minute.
 2. **On OpenWrt the Archer delivers a 150 Mbit/s VD-like stream smoothly.** It had 1–9 frames a minute more than 8 ms late. In a real race, AV1 10-bit at 150 Mbit/s gave 2.1 repeated frames a minute, against 1.0–1.75 over a USB cable.
-3. **From 150 to 180 Mbit/s it's equally even, but above 150 rare stalls appear.** All of these bitrates had about 12 frames a minute more than 8 ms late. From 160 Mbit/s up there were occasional ~0.1 s stalls, 5 in 24 minutes, and none in 11 minutes at 150. That evidence is weak. At 190 Mbit/s it was clearly worse. The CPU runs out only at 250–300 Mbit/s: it's one MIPS core at 775 MHz, and OpenWrt bridges the traffic in software. An earlier version of this page said the CPU ran out above 150. That came from tests run without VD and was wrong.
-4. **A Wi-Fi 6 router on its stock firmware, Xiaomi Mesh System AX3000 (RA82), carries 300 Mbit/s, but not evenly**: 10–110 late frames a minute. None of its settings changed that by an order of magnitude, and 160 MHz was worse. OpenWrt can't be installed on it: secure boot is on, and U-Boot runs only Xiaomi-signed images.
-5. **Measure with VD running on the headset.** Without it, the Quest 3 keeps Wi-Fi power saving on and lets a location service scan channels. Both make Wi-Fi look worse than it is in a game (see [Measuring](#measuring)).
+3. **With nothing polling it, the Archer on OpenWrt carries 180–200 Mbit/s about as evenly as 150.** 180 Mbit/s had 0.3–10 frames a minute more than 8 ms late (median ~3.7), and none more than 33 ms late in 38 minutes. 200 Mbit/s was similar. 220–240 Mbit/s got worse, and the CPU reached ~80% at 240. It's one MIPS core at 775 MHz, and OpenWrt bridges the traffic in software.
+4. **Two things made it look worse, and both are easy to avoid:**
+   - **My own measurement.** Running `iw station dump` and `iw survey dump` on the router once a second took 180 Mbit/s from ~4 to 17–23 late frames a minute. Reading `/proc` once a second didn't. So don't query the router's Wi-Fi driver while playing. LuCI pages that list connected clients probably do the same; that's untested.
+   - **A neighbour's 80 MHz network on channels 36–48.** At night, when it was busy, channel 36 had twice the late frames of channel 100 and ten times the retries. In the daytime it made no difference. Channels 100–112 had no neighbours here.
 
-**What I use for Wi-Fi play:** Archer C6 v2 on OpenWrt 25.12.6, VD at 150 Mbit/s with AV1 10-bit. 170 is likely fine too, but with an occasional stall. Even 300 Mbit/s over Wi-Fi was not achieved on either access point.
+   Earlier versions of this page blamed the CPU and then the chip's heat for the ~12 late frames a minute and the rare 0.1 s stalls measured at 150–180 Mbit/s (the stalls came at 160–180). Both were wrong: those runs had the polling and the night-time neighbour in them. The chip runs hotter on a busy channel because retries keep it transmitting longer.
+5. **A Wi-Fi 6 router on its stock firmware, Xiaomi Mesh System AX3000 (RA82), carries 300 Mbit/s, but not evenly**: 10–110 late frames a minute. None of its settings changed that by an order of magnitude, and 160 MHz was worse. OpenWrt can't be installed on it: secure boot is on, and U-Boot runs only Xiaomi-signed images.
+6. **Measure with VD running on the headset.** Without it, the Quest 3 keeps Wi-Fi power saving on and lets a location service scan channels. Both make Wi-Fi look worse than it is in a game (see [Measuring](#measuring)).
+
+**What I use for Wi-Fi play:** Archer C6 v2 on OpenWrt 25.12.6, channel 100, and so far VD at 150 Mbit/s with AV1 10-bit. VD puts ~5% more on the air than its bitrate setting, so VD at 170–180 Mbit/s matches the 180–190 that tested clean. That isn't checked in a game yet. Even 300 Mbit/s over Wi-Fi was not achieved on either access point.
 
 ## Archer C6 v2: stock firmware against OpenWrt
 
@@ -46,6 +51,8 @@ On the stock firmware, measurements ruled out everything other than the access p
 | 250 Mbit/s, VD not running | 291 | | | | 91% |
 | 300 Mbit/s, VD not running | 2899 | 324 | 2.7 | | saturated |
 
+All the runs in this section were on channel 36, with the router's Wi-Fi driver polled once a second. That overstates the late frames; see [What caused the remaining late frames](#what-caused-the-remaining-late-frames) for runs without it.
+
 Between 150 and 200 Mbit/s, with VD running, I did two series. The first was three interleaved rounds of 1-minute runs at 150–200, in steps of 10. The second was 5-minute runs back to back, like a game. Together:
 
 | Archer on OpenWrt, VD running | Minutes | Frames > 8 ms late per minute | Stalls (frames > 33 ms late) | AP CPU, median |
@@ -59,9 +66,43 @@ Between 150 and 200 Mbit/s, with VD running, I did two series. The first was thr
 
 - **Run-to-run spread (0–35 a minute) is larger than the difference between 150 and 180.** There's no sharp threshold in this range.
 - **Each stall is one event of about 0.1 s.** Around 30 frames in a row are late by 30–105 ms. In that second the AP's transmit rate drops, from 650–867 to 325–360 Mbit/s, and retries rise, while the signal stays the same.
-- **Stalls came mostly when the 5 GHz chip was hottest**, at 101–111 °C against 91–98 °C in the clean runs. The correlation is loose, and OpenWrt's thermal throttling (`ath10k_thermal`) never engaged. Better cooling might help, but that's untested.
+- **The chip was hotter during stalls**, at 101–111 °C against 91–98 °C in the clean runs. That's an effect, not the cause: retries keep it transmitting longer. OpenWrt's thermal throttling (`ath10k_thermal`) never engaged.
 
-The 5 GHz chip runs hot: 69 °C idle, 83–105 °C at 150 Mbit/s, and up to 114 °C at 180 Mbit/s and 106–115 °C at 200–500 Mbit/s.
+The 5 GHz chip runs hot: 69 °C idle, 83–105 °C at 150 Mbit/s, and up to 114 °C at 180 Mbit/s and 106–115 °C at 200–500 Mbit/s, all with the polling on. Without it, it read 76–91 °C before and after each 180–240 Mbit/s run.
+
+### What caused the remaining late frames
+
+**Neighbours.** The 180 Mbit/s runs were 5 minutes each, in blocks 100 → 36 → 100, at night, with polling on in all of them:
+
+| Channel | Frames > 8 ms late per minute | > 33 ms | Retries per second (median) |
+|---|---|---|---|
+| 100 (no neighbours) | 11–16 | 0 in 20 minutes | 44–438 |
+| 36 (the 80 MHz neighbour on 48) | 31 | 0–0.2 | 905–1005 |
+
+In the morning, without polling, I alternated 36 and 100 again. Channel 36 was no worse: 0.3–4 a minute, against 2–10 on 100, with ~1% retries on both. So the neighbour hurts only when it's busy. I stayed on 100, which doesn't depend on that.
+
+**Polling the router.** Then 180 Mbit/s on channel 100, 3-minute runs, interleaved:
+
+| What ran on the router during the stream | Frames > 8 ms late per minute | Max | AP CPU, average |
+|---|---|---|---|
+| nothing | 4.0 / 3.3 | 15 / 17 ms | 67 / 69% |
+| `iw dev phy0-ap0 station dump` and `iw dev phy0-ap0 survey dump`, once a second | **17.3 / 23.3** | 29 / 19 ms | 71 / 73% |
+| `/proc/stat` and the chip temperature, read once a second with shell builtins | 1.3 / 4.0 | 12 / 16 ms | 64 / 68% |
+
+In the earlier runs, 54–70% of the late frames on channel 100 fell within 60 ms after a polling tick, against 5% by chance. Five of the eight 0.1 s stalls started at the same point of the polling cycle.
+
+**A sniffer saw nothing else wrong.** I used a MacBook in monitor mode: Wireless Diagnostics → Window → Sniffer, channel 100, 80 MHz. With VD running, the headset never entered power save and never scanned, and nothing else transmitted on channels 100–112. The AP retried 2.5% of its frames. It sent small aggregates, ~9 MPDUs of two packets each, at MCS 5–7 on two streams.
+
+**Bitrate on channel 100 without polling**, two interleaved rounds of 4-minute runs:
+
+| Bitrate | Frames > 8 ms late per minute | > 33 ms | Max | AP CPU, average |
+|---|---|---|---|---|
+| 180 Mbit/s | 2.0 / 7.3, and 4.0 / 3.3 above | 0 | 19 / 33 ms | 65–70% |
+| 200 Mbit/s | 2.5 / 13.0 | 0 | 25 / 23 ms | 70 / 71% |
+| 220 Mbit/s | 17.8 / 6.5 | one 0.12 s stall | 123 / 20 ms | 72 / 76% |
+| 240 Mbit/s | 13.8 / 12.3 | 0 | 21 / 16 ms | 82 / 79% |
+
+Where the last 2–10 late frames a minute (8–20 ms) on a clean channel come from, I don't know.
 
 ### In a game
 
@@ -95,8 +136,10 @@ This is what was done here. It was done once, on one router; read the [OpenWrt d
    uci delete network.lan.ip6assign
    uci set dhcp.lan.ignore=1; uci set dhcp.lan.ra=disabled; uci set dhcp.lan.dhcpv6=disabled
    /etc/init.d/odhcpd disable
-   # 5 GHz: channel 36, 80 MHz, WPA2-AES; 2.4 GHz off
-   uci set wireless.radio0.channel=36
+   # 5 GHz: 80 MHz, WPA2-AES; 2.4 GHz off. Pick a block of four channels nobody else uses (see below).
+   # 100 is a DFS channel: after boot the AP stays silent for a minute, and if it detects radar it moves to another
+   # channel, which drops the link for about a minute
+   uci set wireless.radio0.channel=100
    uci set wireless.radio0.htmode=VHT80
    uci set wireless.radio0.country=DE                   # your country
    uci set wireless.radio0.disabled=0
@@ -108,6 +151,12 @@ This is what was done here. It was done once, on one router; read the [OpenWrt d
    reboot
    ```
 
+   To find a free block, scan from the router while it's on a non-DFS channel. On a DFS channel the scan returned `Resource busy` here. Look at each network's primary channel and, for 80 MHz ones, `center freq segment 1`: 42 means the block 36–48, 58 means 52–64, 106 means 100–112.
+
+   ```sh
+   iw dev phy0-ap0 scan | grep -E "^BSS|freq:|signal:|SSID:|primary channel|channel width|center freq segment 1"
+   ```
+
    Afterwards the router is at the new address. Nothing else was changed. No packages were added: the image's default driver, `ath10k-ct`, was used. Transmit power was left at the default.
 6. **Going back to stock**, not tried here: TP-Link's TFTP recovery. The PC is at 192.168.0.66 and serves the stock firmware named `ArcherC6v2_tp_recovery.bin`, and you hold Reset while powering the router on. See the OpenWrt device page for the details.
 
@@ -117,7 +166,7 @@ The RA82 has a Qualcomm IPQ5018 SoC (two Cortex-A53 cores at 1 GHz, network offl
 
 Frame test with VD running, 1-minute runs, frames more than 8 ms late per minute:
 
-| Bitrate | RA82, Wi-Fi 6 (HE80), extras off | RA82, stock "Wi-Fi 5 Compatible Mode" (VHT80) | Archer on OpenWrt |
+| Bitrate | RA82, Wi-Fi 6 (HE80), extras off | RA82, stock "Wi-Fi 5 Compatible Mode" (VHT80) | Archer on OpenWrt (polled, channel 36) |
 |---|---|---|---|
 | 150 Mbit/s | 2 – 36 (6 runs) | | 0 – 9 (6 runs) |
 | 200 Mbit/s | 27 / 43 | 22 / 30 | 4 – 27 (3 runs) |
@@ -136,7 +185,7 @@ Things that changed nothing beyond the 2–3× run-to-run spread, with six 5-min
 Measurements also ruled out several other causes:
 - **The router's CPU was not the cause.** Late frames didn't line up with CPU load or with processes starting.
 - **There was no thermal throttling:** level 0 throughout.
-- **The channel was clean:** one neighbouring network on channels 36–48, at −88 dBm; noise −95 dBm.
+- **The channel looked clean:** the RA82's own scan showed one neighbouring network on channels 36–48, at −88 dBm, and noise at −95 dBm. A later scan from the Archer found a network on channel 48 at −69 dBm. All the RA82 tests were on channel 36, so the neighbour may have affected them too. That's untested.
 
 **The headset is not the only reason.** A MacBook Pro (M3 Pro) put in the headset's place, receiving the same stream through the RA82, got 1 and 9 late frames a minute at 150 Mbit/s and ~20 at 300 Mbit/s. That's the same pattern as the headset. macOS has no low-latency Wi-Fi mode, so this points at the access point without proving it.
 
@@ -171,5 +220,7 @@ adb shell setprop debug.oculus.guardian_pause 0
 The lock drops when the headset sleeps, so start VD again before each run. Most of my early frame tests were run without VD. They made the stock RA82 look 15× worse than the Archer at 150 Mbit/s; with VD running the difference was 2–8×. The Archer stock-vs-OpenWrt probe runs were all without VD, so they compare like with like.
 
 Other notes:
+- **Don't query the AP's Wi-Fi driver during a test.** On the Archer, `iw station dump` and `iw survey dump` once a second made 180 Mbit/s 4–7× worse. Take readings before and after the stream instead. Reading `/proc/stat` and `/sys/class/hwmon/*/temp1_input` with shell builtins (`read l < /proc/stat`) once a second was harmless. The RA82 was sampled that way, so its numbers aren't affected.
+- **To see the air itself, a Mac makes a usable sniffer:** Wireless Diagnostics → Window → Sniffer, with the channel and the width. The capture lands in `/var/tmp`. The M3 Pro's capture cut the AP's A-MSDUs at ~1.8 KB, but it caught every BlockAck from the headset.
 - **One-minute runs are enough to spot an order-of-magnitude difference.** Identical settings vary 2–3× between runs, so smaller differences need several runs.
 - **On a Mac as the second client, run `sudo ifconfig awdl0 down` during the test**, and `up` afterwards. AWDL, the radio used by AirDrop, takes the radio off the channel.

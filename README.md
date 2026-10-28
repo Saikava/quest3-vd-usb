@@ -8,7 +8,7 @@ Notes from two days of measuring one setup: Quest 3, Virtual Desktop 1.34.24 (be
 2. **The remaining micro-stutters** (about one single repeated frame per minute) are video frames the Quest 3's hardware decoder finished a few milliseconds late. No VD setting removes them.
 3. **At Godlike quality use 120 Hz, not 144 Hz.** At 144 Hz the decoder can't keep up (both eyes take ~7.2 ms against a 6.9 ms frame): 5× more repeated frames.
 4. **Codec:** H.264+ at 500 Mbit/s looked best at speed to me; AV1 10-bit decodes more evenly. HEVC and HEVC 10-bit had by far the worst decode spikes on Quest 3.
-5. **Over Wi-Fi, the router's firmware matters.** A TP-Link Archer C6 v2 on stock firmware lost the headset's uplink packets, with ~50 ms stalls. The same router flashed with OpenWrt was clean and delivered 150 Mbit/s smoothly; up to 180 about as evenly, but with a rare ~0.1 s stall. Its CPU runs out at 250–300 Mbit/s. See [section 3](#3-over-wi-fi-the-access-points-firmware).
+5. **Over Wi-Fi, the router's firmware matters.** A TP-Link Archer C6 v2 on stock firmware lost the headset's uplink packets, with ~50 ms stalls. The same router flashed with OpenWrt was clean and delivered 180–200 Mbit/s about as smoothly as 150, as long as nothing queried its Wi-Fi driver during play and no busy neighbour shared its channels. Above 220 it gets worse. See [section 3](#3-over-wi-fi-the-access-points-firmware).
 
 ## 1. The freezes: a bug in Windows' USB NCM driver
 
@@ -94,6 +94,8 @@ Same headset, same desk, PC wired to the access point, channel 36 at 80 MHz. Det
 | Xiaomi Mesh System AX3000 (RA82), stock 1.4.31, Wi-Fi 6 | 0% | 1.3 (up to 41 ms) | 2–36 | 10–110 late per minute, no setting fixed it; OpenWrt impossible (secure boot) |
 
 In a race, the Archer on OpenWrt with AV1 10-bit at 150 Mbit/s gave 2.1 repeated frames a minute, against 1.0–1.75 over the USB cable.
+
+**Pick a channel block nobody else uses, and don't poll the router's Wi-Fi driver while playing.** Querying `iw station dump` and `iw survey dump` once a second made the Archer 4–7× worse at 180 Mbit/s. On a free channel without that, 180 Mbit/s had a median of ~3.7 frames a minute more than 8 ms late, and none more than 33 ms late in 38 minutes. The 1–9 in the table was measured on channel 36 with the polling on.
 
 **Measure with VD running on the headset.** VD takes the low-latency Wi-Fi lock. Without it the Quest 3 keeps power saving on and scans channels every few minutes, and Wi-Fi looks worse than in a game.
 
